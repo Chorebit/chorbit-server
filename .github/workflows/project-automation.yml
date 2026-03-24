@@ -1,0 +1,161 @@
+name: Project board automation
+
+on:
+  issues:
+    types: [assigned]
+  pull_request:
+    types: [opened, reopened]
+
+env:
+  ORG: Chorebit
+  PROJECT_NUMBER: 1
+
+jobs:
+  issue-assigned-in-progress:
+    name: Move assigned issue to In Progress
+    if: github.event_name == 'issues' && github.event.action == 'assigned'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Move to In Progress
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          # Get project ID
+          PROJECT_ID=$(gh api graphql -f query='
+            query {
+              organization(login: "'"$ORG"'") {
+                projectV2(number: '"$PROJECT_NUMBER"') { id }
+              }
+            }' --jq '.data.organization.projectV2.id')
+
+          # Get the Status field ID and option IDs
+          FIELD_DATA=$(gh api graphql -f query='
+            query {
+              organization(login: "'"$ORG"'") {
+                projectV2(number: '"$PROJECT_NUMBER"') {
+                  field(name: "Status") {
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      options { id name }
+                    }
+                  }
+                }
+              }
+            }' --jq '.data.organization.projectV2.field')
+
+          FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
+          IN_PROGRESS_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name=="In Progress") | .id')
+
+          # Get the item ID for this issue in the project
+          ISSUE_NODE_ID="${{ github.event.issue.node_id }}"
+
+          ITEM_ID=$(gh api graphql -f query='
+            query {
+              node(id: "'"$ISSUE_NODE_ID"'") {
+                ... on Issue {
+                  projectItems(first: 10) {
+                    nodes {
+                      id
+                      project { id }
+                    }
+                  }
+                }
+              }
+            }' --jq '.data.node.projectItems.nodes[] | select(.project.id=="'"$PROJECT_ID"'") | .id')
+
+          if [ -z "$ITEM_ID" ]; then
+            echo "Issue not found in project, skipping"
+            exit 0
+          fi
+
+          # Update the status to In Progress
+          gh api graphql -f query='
+            mutation {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: "'"$PROJECT_ID"'"
+                itemId: "'"$ITEM_ID"'"
+                fieldId: "'"$FIELD_ID"'"
+                value: { singleSelectOptionId: "'"$IN_PROGRESS_ID"'" }
+              }) { projectV2Item { id } }
+            }'
+          echo "Moved issue to In Progress"
+
+  pr-opened-in-test:
+    name: Move linked issue to In Test when PR opens
+    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Move to In Test
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          # Extract issue number from PR body (looks for "Closes #123" or "Fixes #123")
+          PR_BODY="${{ github.event.pull_request.body }}"
+          ISSUE_NUM=$(echo "$PR_BODY" | grep -oP '(?:closes|fixes|resolves)\s*#(\d+)' -i | head -1 | grep -oP '\d+')
+
+          if [ -z "$ISSUE_NUM" ]; then
+            echo "No linked issue found in PR body, skipping"
+            exit 0
+          fi
+
+          # Get the issue node ID
+          REPO="${{ github.repository }}"
+          ISSUE_NODE_ID=$(gh api "repos/$REPO/issues/$ISSUE_NUM" --jq '.node_id')
+
+          # Get project ID
+          PROJECT_ID=$(gh api graphql -f query='
+            query {
+              organization(login: "'"$ORG"'") {
+                projectV2(number: '"$PROJECT_NUMBER"') { id }
+              }
+            }' --jq '.data.organization.projectV2.id')
+
+          # Get the Status field ID and In Test option ID
+          FIELD_DATA=$(gh api graphql -f query='
+            query {
+              organization(login: "'"$ORG"'") {
+                projectV2(number: '"$PROJECT_NUMBER"') {
+                  field(name: "Status") {
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      options { id name }
+                    }
+                  }
+                }
+              }
+            }' --jq '.data.organization.projectV2.field')
+
+          FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
+          IN_TEST_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name=="In Test") | .id')
+
+          # Get the item ID for this issue in the project
+          ITEM_ID=$(gh api graphql -f query='
+            query {
+              node(id: "'"$ISSUE_NODE_ID"'") {
+                ... on Issue {
+                  projectItems(first: 10) {
+                    nodes {
+                      id
+                      project { id }
+                    }
+                  }
+                }
+              }
+            }' --jq '.data.node.projectItems.nodes[] | select(.project.id=="'"$PROJECT_ID"'") | .id')
+
+          if [ -z "$ITEM_ID" ]; then
+            echo "Issue not found in project, skipping"
+            exit 0
+          fi
+
+          # Update the status to In Test
+          gh api graphql -f query='
+            mutation {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: "'"$PROJECT_ID"'"
+                itemId: "'"$ITEM_ID"'"
+                fieldId: "'"$FIELD_ID"'"
+                value: { singleSelectOptionId: "'"$IN_TEST_ID"'" }
+              }) { projectV2Item { id } }
+            }'
+          echo "Moved linked issue to In Test"
