@@ -3,13 +3,15 @@ name: Project Board Automations
 on:
   issues:
     types: [opened, assigned]
+  pull_request:
+    types: [opened]
 
 env:
   PROJECT_NUMBER: 1
   ORG: Chorebit
 
 jobs:
-  # When an issue is opened, add it to the project board (→ Backlog)
+  # When an issue is opened, add it to the project board
   auto-add-issue:
     if: github.event_name == 'issues' && github.event.action == 'opened'
     runs-on: ubuntu-latest
@@ -28,7 +30,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PROJECT_PAT }}
         run: |
-          # Get the issue's project item ID
           ITEM_ID=$(gh api graphql -f query='
             query($org: String!, $num: Int!, $nodeId: ID!) {
               organization(login: $org) {
@@ -59,7 +60,6 @@ jobs:
               --jq '.data.addProjectV2ItemById.item.id')
           fi
 
-          # Set status to "In Progress" (option ID: 47fc9ee4)
           gh api graphql -f query='
             mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: String!) {
               updateProjectV2ItemFieldValue(input: {
@@ -76,3 +76,73 @@ jobs:
                -f value="47fc9ee4"
 
           echo "Moved issue to In Progress"
+
+  # When a PR is opened, move the linked issue to "In Test"
+  pr-opened-in-test:
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Move linked issue to In Test
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Safely fetch PR body via gh CLI instead of interpolating it
+          PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json body --jq '.body')
+
+          # Extract issue number from PR body (Closes #N, Fixes #N, Resolves #N)
+          ISSUE_NUM=$(echo "$PR_BODY" | grep -ioP '(?:closes|fixes|resolves)\s*#\K\d+' | head -1)
+
+          if [ -z "$ISSUE_NUM" ]; then
+            echo "No linked issue found in PR body. Skipping."
+            exit 0
+          fi
+
+          echo "Found linked issue #$ISSUE_NUM"
+
+          # Get the issue node ID
+          ISSUE_NODE_ID=$(gh api "/repos/$REPO/issues/$ISSUE_NUM" --jq '.node_id')
+
+          # Find the item in the project
+          ITEM_ID=$(gh api graphql -f query='
+            query($org: String!, $num: Int!) {
+              organization(login: $org) {
+                projectV2(number: $num) {
+                  items(first: 100) {
+                    nodes {
+                      id
+                      content {
+                        ... on Issue {
+                          id
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f org="$ORG" -F num=$PROJECT_NUMBER \
+            --jq ".data.organization.projectV2.items.nodes[] | select(.content.id == \"$ISSUE_NODE_ID\") | .id")
+
+          if [ -z "$ITEM_ID" ]; then
+            echo "Issue not found in project. Skipping."
+            exit 0
+          fi
+
+          # Set status to "In Test" (option ID: 2c8296ba)
+          gh api graphql -f query='
+            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId
+                itemId: $itemId
+                fieldId: $fieldId
+                value: {singleSelectOptionId: $value}
+              }) {
+                projectV2Item { id }
+              }
+            }' -f projectId="PVT_kwDOD_iy0c4BRqL3" \
+               -f itemId="$ITEM_ID" \
+               -f fieldId="PVTSSF_lADOD_iy0c4BRqL3zg_bD_k" \
+               -f value="2c8296ba"
+
+          echo "Moved linked issue to In Test"
