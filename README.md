@@ -44,6 +44,12 @@ npm test                 # Jest (when configured)
 npm run typecheck        # tsc --noEmit
 ```
 
+## Git
+- Branch format: `{type}/{issue-number}-{short-slug}` — e.g. `feat/14-auth-schema`, `fix/7-prisma-relation`, `chore/8-eslint-setup`
+- Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`
+- Commit format: `type: description (#issue-number)`
+- Branch off `main`, merge back via PR — never merge directly
+
 ## Conventions
 - TypeScript strict, no `any`
 - Named exports only (no default exports)
