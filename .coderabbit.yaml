@@ -1,7 +1,7 @@
-language: "en-US"
+language: 'en-US'
 
 reviews:
-  profile: "chill"
+  profile: 'chill'
   request_changes_workflow: false
   high_level_summary: true
   poem: false
@@ -11,11 +11,11 @@ reviews:
     enabled: true
     drafts: false
   path_filters:
-    - "!**/node_modules/**"
-    - "!**/dist/**"
-    - "!**/prisma/migrations/**"
-    - "!**/*.lock"
-    - "!**/.git/**"
+    - '!**/node_modules/**'
+    - '!**/dist/**'
+    - '!**/prisma/migrations/**'
+    - '!**/*.lock'
+    - '!**/.git/**'
 
 chat:
   auto_reply: true
