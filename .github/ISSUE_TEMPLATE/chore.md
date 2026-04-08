@@ -1,15 +1,17 @@
 ---
 name: Chore
 about: Refactoring, tooling, or maintenance work
-title: "chore: "
+title: 'chore: '
 labels: chore
-assignees: ""
+assignees: ''
 ---
 
 ## What and why
+
 <!-- What needs to change and why now? -->
 
 ## Acceptance Criteria
+
 - [ ]
 - [ ]
 
