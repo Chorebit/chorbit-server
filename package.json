@@ -34,22 +34,28 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",
+    "@types/pg": "^8.20.0",
     "prisma": "^7.5.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.58.0"
   },
   "lint-staged": {
-    "*.ts": ["eslint --fix", "prettier --write"]
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@apollo/server": "^5.5.0",
     "@as-integrations/express5": "^1.1.2",
+    "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.5.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "graphql": "^16.13.2",
-    "graphql-tag": "^2.12.6"
+    "graphql-tag": "^2.12.6",
+    "pg": "^8.20.0"
   }
 }
