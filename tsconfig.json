@@ -36,5 +36,12 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "exclude": ["node_modules", "dist", "prisma.config.ts", "prisma/seed.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "prisma.config.ts",
+    "prisma/seed.ts",
+    "**/*.test.ts",
+    "jest.config.ts"
+  ]
 }
